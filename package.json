@@ -1,0 +1,21 @@
+{
+  "name": "hygraph-sync",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "sync.js",
+  "scripts": {
+    "publish": "node sync.js publish",
+    "push": "node sync.js push",
+    "pull": "node sync.js pull",
+    "test": "node sync.js test"
+  },
+  "author": "",
+  "license": "MIT",
+  "description": "",
+  "dependencies": {
+    "@apollo/client": "^3.13.1",
+    "dotenv": "^16.4.7",
+    "graphql": "^16.10.0",
+    "walk": "^2.3.15"
+  }
+}
