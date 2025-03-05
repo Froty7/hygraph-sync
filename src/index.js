@@ -1,6 +1,7 @@
 import { gql } from "@apollo/client/core/core.cjs";
 import { createWriteStream, existsSync, openAsBlob } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
+import p from "path";
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { walk } from "walk";
@@ -65,24 +66,27 @@ const UPDATE_ASSETS_WITH_REUPLOAD = gql`
   }
 `;
 
+const path = {
+  assets: "Assets",
+  ignore: p.join("Assets", "ignore"),
+  metadata: p.join("Assets", "metadata"),
+  reUpload: p.join("Assets", "reUpload"),
+  json: p.join("Assets", "assets.json"),
+};
+
+const dirTemp = [];
+
 const Main = async ({ args, client }) => {
-  for (const dir of [
-    "Assets",
-    "Assets/ignore",
-    "Assets/metadata",
-    "Assets/ReUpload",
-  ])
+  for (const dir of [path.assets, path.ignore, path.metadata, path.reUpload])
     if (!existsSync(dir)) await mkdir(dir);
 
   await modes[args[0]]({ client, args });
 };
 
-const dirTemp = [];
-
 const searchAssets = (fileName) =>
   new Promise((end) => {
     if (!dirTemp.length) {
-      const walker = walk("Assets");
+      const walker = walk(path.assets);
       walker.on("names", (root, names) => dirTemp.push(names));
       walker.on("end", end);
     } else end();
@@ -96,7 +100,7 @@ const downloadAsset = async (url, name) => {
   await new Promise((r) => setTimeout(r, process.env.PULL_TIME_SPAN ?? 100));
   return finished(
     Readable.fromWeb((await fetch(url)).body).pipe(
-      createWriteStream(`Assets/metadata/${name}`, {
+      createWriteStream(p.join(path.metadata, name), {
         flags: "wx",
       })
     )
@@ -109,13 +113,12 @@ const modes = {
   },
 
   push: async ({ client }) => {
-    if (!existsSync("Assets/assets.json"))
-      return console.error("please, pull first");
+    if (!existsSync(path.json)) return console.error("please, pull first");
 
-    const json = JSON.parse((await readFile("Assets/assets.json")).toString());
+    const json = JSON.parse((await readFile(path.json)).toString());
     let done = 0;
 
-    const walker = walk("Assets");
+    const walker = walk(path.assets);
     walker.on("errors", (root, nodeStatsArray, next) => {
       console.log(nodeStatsArray);
       next();
@@ -127,10 +130,10 @@ const modes = {
     // });
 
     walker.on("file", (root, fileStats, next) => {
-      const shouldIgnore = root.startsWith("Assets/ignore");
+      const shouldIgnore = root.startsWith(path.ignore);
       if (shouldIgnore) return next();
-      const shouldReUpload = root.startsWith("Assets/ReUpload");
-      const shouldUpdate = root.startsWith("Assets/metadata");
+      const shouldReUpload = root.startsWith(path.reUpload);
+      const shouldUpdate = root.startsWith(path.metadata);
       const { id, fileName, altText, position } =
         json.find((f) => f.id == fileStats.name.split(" ").at(1)) ?? {};
       if (!id) return next();
@@ -239,29 +242,26 @@ const modes = {
         }
       }
     }
-    if (existsSync("Assets/assets.json")) {
-      const json = JSON.parse(
-        (await readFile("Assets/assets.json")).toString()
-      );
+    if (existsSync(path.json)) {
+      const json = JSON.parse((await readFile(path.json)).toString());
       jsonData = jsonData
         .filter((a) => !json.find((b) => a.id === b.id))
         .concat(json);
     }
-    writeFile("Assets/assets.json", JSON.stringify(jsonData, null, 2));
+    writeFile(path.json, JSON.stringify(jsonData, null, 2));
   },
 
   publish: async ({ client }) => {
-    if (!existsSync("Assets/assets.json"))
-      return console.error("please, pull first");
-    const json = JSON.parse((await readFile("Assets/assets.json")).toString());
+    if (!existsSync(path.json)) return console.error("please, pull first");
+    const json = JSON.parse((await readFile(path.json)).toString());
     let done = 0;
-    const walker = walk("Assets");
+    const walker = walk(path.assets);
     walker.on("errors", (root, nodeStatsArray, next) => {
       console.error(nodeStatsArray);
       next();
     });
     walker.on("file", (root, fileStats, next) => {
-      const shouldIgnore = root.startsWith("Assets/ignore");
+      const shouldIgnore = root.startsWith(path.ignore);
       if (shouldIgnore) return next();
       const { id } =
         json.find((f) => f.id == fileStats.name.split(" ").at(1)) ?? {};
